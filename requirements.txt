@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+playwright
+google-generativeai
+openai
+python-dotenv
+jinja2
+python-multipart
+protobuf

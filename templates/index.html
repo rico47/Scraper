@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Web Scraper Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px;
+            border-radius: 50%; border: 4px solid rgba(0,0,0,0.1);
+            border-left-color: #09f; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 flex justify-center">
+    <div class="flex flex-col md:flex-row gap-6 w-full max-w-6xl">
+
+        <!-- Sidebar: Projekty -->
+        <div class="w-full md:w-64 bg-white p-4 rounded-lg shadow-md h-fit">
+            <h2 class="font-bold text-gray-700 mb-4 border-b pb-2">Moje Projekty</h2>
+            <div class="space-y-2 mb-4">
+                {% for name in projects %}
+                <div class="flex items-center justify-between group">
+                    <a href="/load/{{ name }}"
+                       class="block flex-1 p-2 rounded text-sm {% if active_project == name %}bg-blue-600 text-white{% else %}hover:bg-gray-100 text-gray-600{% endif %}">
+                        {{ name }}
+                    </a>
+                    <a href="/delete/{{ name }}" class="text-red-400 hover:text-red-600 px-2 opacity-0 group-hover:opacity-100 transition">✕</a>
+                </div>
+                {% endfor %}
+            </div>
+            <button onclick="document.getElementById('newProjectModal').classList.remove('hidden')"
+                    class="w-full py-2 bg-green-500 text-white rounded text-sm font-bold hover:bg-green-600 transition">
+                + Nowy Projekt
+            </button>
+        </div>
+
+        <!-- Main: Formularz -->
+        <div class="flex-1 bg-white p-8 rounded-lg shadow-xl">
+            <div class="flex items-center justify-between mb-6 border-b pb-2">
+                <h1 class="text-2xl font-bold text-gray-800">Analiza: {{ active_project }}</h1>
+                <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded italic">v3.0: Project Manager</span>
+            </div>
+
+            <form action="/analyze" method="post" id="analyzeForm" class="space-y-4">
+                <input type="hidden" name="project_name" value="{{ active_project }}">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 p-4 rounded-md border border-blue-100">
+                    <div>
+                        <label class="block text-sm font-semibold text-blue-800 mb-1">Dostawca AI:</label>
+                        <select name="provider" id="provider" class="w-full border-blue-300 rounded-md p-2 border bg-white" onchange="toggleFields()">
+                            <option value="gemini" {% if provider == 'gemini' %}selected{% endif %}>Google Gemini</option>
+                            <option value="openai_api" {% if provider == 'openai_api' %}selected{% endif %}>OpenAI API</option>
+                            <option value="local" {% if provider == 'local' %}selected{% endif %}>LM Studio / Ollama</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-blue-800 mb-1">Klucz API / URL:</label>
+                        <input type="password" name="api_key" id="api_key" value="{{ api_key if api_key else '' }}"
+                            class="w-full border-blue-300 rounded-md p-2 border bg-white" placeholder="Klucz API">
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-700">Adresy URL:</label>
+                    <textarea name="urls" rows="4" required class="w-full border-gray-300 rounded-md p-2 border font-mono text-sm" placeholder="https://...">{{ urls if urls else '' }}</textarea>
+                    <div class="flex flex-wrap gap-4 p-2 bg-gray-50 rounded border border-dashed">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" name="is_twitter" id="is_twitter" {% if is_twitter %}checked{% endif %} class="rounded border-gray-300 text-blue-600">
+                            <label for="is_twitter" class="text-sm font-medium text-blue-900">Tryb Twittera</label>
+                        </div>
+                        <div class="flex items-center gap-2 border-l pl-4">
+                            <input type="checkbox" name="show_browser" id="show_browser" class="rounded border-gray-300 text-red-600">
+                            <label for="show_browser" class="text-sm font-medium text-red-700">Pokaż okno</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Co mam znaleźć?</label>
+                        <input type="text" name="task" required value="{{ task if task else '' }}" class="w-full border-gray-300 rounded-md p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Format raportu:</label>
+                        <input type="text" name="format" value="{{ format if format else '' }}" class="w-full border-gray-300 rounded-md p-2 border">
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 font-semibold flex justify-center items-center gap-2">
+                    <span>Uruchom analizę</span>
+                </button>
+            </form>
+
+            <div id="loading" class="hidden mt-6 text-center">
+                <div class="flex justify-center mb-2"><div class="loading-spinner"></div></div>
+                <p class="text-gray-600 animate-pulse">Pracuję nad projektem {{ active_project }}...</p>
+            </div>
+
+            {% if report %}
+            <div class="mt-8 p-6 bg-gray-50 border rounded-lg shadow-inner">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">Wynik analizy:</h2>
+                <div class="prose max-w-none text-gray-700 whitespace-pre-wrap">{{ report }}</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal: Nowy Projekt -->
+    <div id="newProjectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-md">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">Dodaj nowy projekt</h2>
+            <form action="/save_project" method="post">
+                <input type="hidden" name="provider" value="{{ provider }}">
+                <input type="hidden" name="api_key" value="{{ api_key }}">
+                <input type="hidden" name="urls" value="{{ urls }}">
+                <input type="hidden" name="task" value="{{ task }}">
+                <input type="hidden" name="format" value="{{ format }}">
+                <input type="hidden" name="is_twitter" value="{{ is_twitter }}">
+
+                <input type="text" name="name" required placeholder="Nazwa projektu (np. SpaceX News)"
+                       class="w-full border border-gray-300 rounded p-2 mb-4 focus:ring-blue-500">
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="document.getElementById('newProjectModal').classList.add('hidden')"
+                            class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Anuluj</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Stwórz</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function toggleFields() {
+            const p = document.getElementById('provider').value;
+            const i = document.getElementById('api_key');
+            i.type = (p === 'local') ? "text" : "password";
+            if (p === 'local' && !i.value) i.value = "http://localhost:1234/v1";
+        }
+        document.getElementById('analyzeForm').onsubmit = () => {
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('loading').classList.remove('hidden');
+        };
+        toggleFields();
+    </script>
+</body>
+</html>
