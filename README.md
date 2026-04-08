@@ -11,7 +11,7 @@ Program służy do przeszukiwania stron internetowych jak i twitter'a w celu pos
 
 ## Wymagania
 * Python 3.10+
-* Klucz API Google Gemini
+* Klucz API Google Gemini ewentualnie własny llm
 * Zainstalowane przeglądarki Playwright
 
 ## Uruchomienie
